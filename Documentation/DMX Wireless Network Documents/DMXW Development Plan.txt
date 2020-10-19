@@ -1,0 +1,57 @@
+DMXW Future Development Plans               Apr.18/14
+=============================
+
+1) I've made a change to RFM69_DMX in receiveBegin() that I think is
+   needed--disabling interrupts. This needs to be tested.
+
+2) Data structure changes have been made to the latest non-released versions
+   of the Gateway and Node sketches. These haven't been fully tested yet, but
+   DMX mappings can be added on the gateway and nodes. The gateway can tell
+   a node to add a mapping. DMX_RUN hasn't been fully tested. All multi-cycle
+   (multi-node) commands haven't been tested. (See below for new approach to
+   take.)
+
+3) All commands entered at the console show go thru a command handlers. In
+   getSerialCommand(), just parse the command name and arguments, and
+   perform argument checks. For command, X, write a handleTxCommandX(..., <progress>)
+   function. In getSerialCommand(), call handleTxCommandX(..., START). In
+   the main loop:
+	- check if command in progress
+	- if so, call new function, handleTxCommand()
+	- in handleTxCommand, case on command type and call handleTxCommandX(..., CONTINUE)
+
+4) The gateway doesn't currently keep track of which nodes are on the DMXW network.
+   When running commands that affect all nodes, this creates a problem for determining
+   which nodes to interact with. We could ping all nodes (up to 254 possible node, node IDs
+   in the range 2 - 254). To avoid radio transmission collisions, the nodes should never
+   be allowed to transmit at the same time. To best avoid this, the gateway should keep
+   track of the nodes that are present on the net-- at least, it should do so
+   while not in DMX-512 distribution mode; while in distribution mode, the gateway simply
+   broadcasts and won't care which nodes are available. To do this, perform the following
+   continuous discovery process mastered from the gateway.
+	- while no command is in progress:
+	- continuously send a CMD_PING to each node ID value in turn
+	  (2 - 254); allow 20 ms for a reply and wait, say 5 ms perhaps, between each
+		- so, we should be able to ping 40 candidate nodes per second
+		- so, every ~6.35 seconds, we should be able to check for and confirm
+		  the presence of all possible nodes on the network.
+
+5) Ensure that we have the following capabilities:
+	(1)  Map DMX-512 to DMXW channels on the gateway [DONE]
+	(2)  Map console controls to DMXW channels at the gateway [DONE]
+	(3)  Tell a remote node to map a DMXW channel to a specified port
+		- the node should ACK the request
+		- the gateway doesn't track the DMXW-to-port mappings (it
+		  can query those as necessary--see below)
+	(4)  Tell a remote node to remove a specific DMXW channel mapping
+	(5)  Ping node for presence [DONE]
+	(6)  Query a node (or all nodes) for its (their) DMXW-to-port mappings
+		- at gateway console, include node # in the output
+	(7)  Run DMXW distribution
+		- I believe this works at the gateway end
+		- I don't know if the nodes correctly respond
+	(8)  Query a node's configuration data (DMXW-to-port, isAnalog, ...??) data and
+	     copy it to a second node
+	(9)  Instruct gateway and nodes to all save their config data to EEPROM
+	(10) Instruct nodes to delete their config data (with option to save the deleted
+	     config to EEPROM).
